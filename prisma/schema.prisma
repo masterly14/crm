@@ -1,0 +1,1781 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RealEstateAgency {
+  id                    String @db.Uuid                @id @default(uuid())
+  clerkOrganizationId   String @unique
+  name                  String
+  slug                  String?
+  imageUrl              String?
+  legalName             String?
+  taxId                 String?
+  contactName           String?
+  contactEmail          String?
+  contactPhone          String?
+  customDomain          String?
+  demandEmbedPublicKeyHash String?
+  demandEmbedPublicKeyHint String?
+  demandEmbedKeyRotatedAt DateTime?
+  billingEmail          String?
+  billingAddress        Json?
+  stripeCustomerId      String?                @unique
+  billingStatus         BillingAgencyStatus    @default(PENDING_ACTIVATION)
+  billingCollectionMode BillingCollectionMode  @default(AUTOMATIC)
+  graceUntil            DateTime?
+  suspendedAt           DateTime?
+  cancelledAt           DateTime?
+  dataRetentionUntil    DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  memberships           AgencyMembership[]
+  branches              Branch[]
+  teams                 Team[]
+  teamTerritories       TeamTerritory[]
+  properties            Property[]
+  demands               Demand[]
+  demandInteractions    DemandInteraction[]
+  demandImportJobs      DemandImportJob[]
+  tasks                 Task[]
+  visits                Visit[]
+  visitConfirmationTokens VisitConfirmationToken[]
+  calendarConnections   CalendarConnection[]
+  calendarSyncPreferences CalendarSyncPreference[]
+  calendarSyncCheckpoints CalendarSyncCheckpoint[]
+  owners                Owner[]
+  captureOpportunities  CaptureOpportunity[]
+  marketListings        MarketListing[]
+  propertyPhotos        PropertyPhoto[]
+  propertyDocuments     PropertyDocument[]
+  propertyImportJobs    PropertyImportJob[]
+  propertyCommissionSettings PropertyCommissionSetting[]
+  agencyCommissionSetting AgencyCommissionSetting?
+  commissions          Commission[]
+  liquidationRuns      LiquidationRun[]
+  auditLogs             AuditLog[]
+  subscriptions         AgencySubscription[]
+  usageCounters         AgencyUsageCounter[]
+  usageEvents           AgencyUsageEvent[]
+  billingInvoices       BillingInvoice[]
+  paymentMethods        BillingPaymentMethod[]
+  pendingChanges        BillingPendingChange[]
+  appliedCoupons        AgencyCoupon[]
+  billingAuditLogs      BillingAuditLog[]
+  webhookEvents         BillingWebhookEvent[]
+  featureFlags          AgencyFeatureFlag[]
+  notifications         Notification[]
+  notificationPreferences NotificationPreference[]
+  notificationDndWindows NotificationDndWindow[]
+  agencyEmailTemplateOverrides AgencyEmailTemplateOverride[]
+  emailDeliveries      EmailDelivery[]
+  opsAlerts            OpsAlert[]
+}
+
+model AgencyMembership {
+  id                String           @id @default(uuid())
+  agencyId          String
+  clerkUserId       String
+  clerkMembershipId String?          @unique
+  role              String
+  status            AgencyMembershipStatus @default(ACTIVE)
+  branchId          String?
+  teamId            String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  agency            RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  branch            Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  team              Team?            @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([agencyId, clerkUserId])
+  @@index([agencyId, status])
+  @@index([branchId])
+  @@index([teamId])
+  @@index([clerkUserId])
+}
+
+enum AgencyMembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Branch {
+  id          String           @id @default(uuid())
+  agencyId    String
+  name        String
+  code        String?
+  city        String?
+  address     String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  agency      RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  memberships AgencyMembership[]
+  teams       Team[]
+
+  @@unique([agencyId, name])
+  @@unique([agencyId, code])
+  @@index([agencyId, isActive])
+}
+
+model Team {
+  id          String           @id @default(uuid())
+  agencyId    String
+  branchId    String?
+  name        String
+  description String?
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  agency      RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  branch      Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  memberships AgencyMembership[]
+  territories TeamTerritory[]
+
+  @@unique([agencyId, name])
+  @@index([agencyId, isActive])
+  @@index([branchId])
+}
+
+model TeamTerritory {
+  id        String           @id @default(uuid())
+  agencyId  String
+  teamId    String
+  cityCode  String
+  cityName  String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  agency    RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  team      Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, cityCode])
+  @@index([agencyId, cityCode])
+}
+
+model AgencyFeatureFlag {
+  id              String           @id @default(uuid())
+  agencyId        String
+  moduleCode      String
+  enabled         Boolean          @default(true)
+  reason          String?
+  metadata        Json?
+  updatedByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  agency          RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, moduleCode])
+  @@index([agencyId, enabled])
+}
+
+enum BillingAgencyStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingCollectionMode {
+  AUTOMATIC
+  MANUAL_INVOICE
+}
+
+enum SubscriptionLifecycleStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingPeriod {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum PlanCatalogStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum LimitBehavior {
+  HARD_CAP
+  SOFT_CAP_OVERAGE
+}
+
+enum SubscriptionCityStatus {
+  ACTIVE
+  PENDING_ACTIVATION
+  PENDING_DEACTIVATION
+  INACTIVE
+}
+
+enum ChangeApplyMode {
+  IMMEDIATE
+  NEXT_CYCLE
+}
+
+enum SubscriptionChangeType {
+  PLAN
+  PERIOD
+  CITIES
+  LIMITS
+  OVERAGE_PRICING
+  COUPON
+  CANCELLATION
+}
+
+enum PendingChangeStatus {
+  PENDING
+  APPLIED
+  CANCELLED
+  REPLACED
+  FAILED
+}
+
+enum BillingInvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum BillingInvoiceLineType {
+  PLAN_RECURRING
+  CITY_ADDON_RECURRING
+  OVERAGE
+  DISCOUNT
+  MANUAL_ADJUSTMENT
+  TAX
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum CouponDuration {
+  ONCE
+  REPEATING
+  FOREVER
+}
+
+enum AgencyCouponStatus {
+  ACTIVE
+  EXPIRED
+  REMOVED
+}
+
+enum BillingPaymentMethodStatus {
+  ACTIVE
+  EXPIRED
+  DETACHED
+}
+
+enum BillingWebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum BillingAuditActorType {
+  SYSTEM
+  ADMIN
+  CLIENT
+}
+
+enum NotificationEventType {
+  DEMAND_CREATED
+  DEMAND_STATUS_CHANGED
+  PROPERTY_CREATED
+  PROPERTY_STATUS_CHANGED
+  WELCOME
+  TASK_ASSIGNED
+  VISIT_CONFIRMED
+  VISIT_REMINDER
+  BILLING_PAYMENT_SUCCEEDED
+  BILLING_PAYMENT_FAILED
+  BILLING_CHANGE_SCHEDULED
+  BILLING_CHANGE_APPLIED
+  BILLING_SUSPENDED
+  BILLING_OVERAGE_CAP_REACHED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum OpsAlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+}
+
+enum OpsAlertStatus {
+  NEW
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum ContactChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+  CALL
+}
+
+enum SuppressionSource {
+  USER_OPTOUT
+  LEGAL
+  MANUAL_OPS
+  BOUNCE
+  COMPLAINT
+}
+
+model BillingPlan {
+  id                String                    @id @default(uuid())
+  code              String                    @unique
+  name              String
+  description       String?
+  status            PlanCatalogStatus         @default(ACTIVE)
+  isFreeTier        Boolean                   @default(false)
+  defaultOverageCap Decimal?                  @db.Decimal(14, 2)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  prices            BillingPlanPrice[]
+  limits            BillingPlanLimit[]
+  overagePrices     BillingPlanOveragePrice[]
+  features          BillingPlanFeature[]
+  subscriptions     AgencySubscription[]
+}
+
+model BillingPlanPrice {
+  id         String        @id @default(uuid())
+  planId     String
+  period     BillingPeriod
+  currency   String        @default("COP")
+  amount     Decimal       @db.Decimal(14, 2)
+  validFrom  DateTime      @default(now())
+  validUntil DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  plan       BillingPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, period, validFrom])
+  @@index([validUntil])
+}
+
+model BillingPlanLimit {
+  id            String        @id @default(uuid())
+  planId        String
+  metricCode    String
+  metricLabel   String?
+  behavior      LimitBehavior @default(HARD_CAP)
+  includedUnits Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  plan          BillingPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, metricCode])
+}
+
+model BillingPlanOveragePrice {
+  id         String      @id @default(uuid())
+  planId     String
+  metricCode String
+  currency   String      @default("COP")
+  unitPrice  Decimal     @db.Decimal(14, 6)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  plan       BillingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, metricCode])
+}
+
+model BillingPlanFeature {
+  id          String      @id @default(uuid())
+  planId      String
+  featureCode String
+  enabled     Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  plan        BillingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureCode])
+}
+
+model BillingCityPricing {
+  id         String        @id @default(uuid())
+  period     BillingPeriod
+  currency   String        @default("COP")
+  unitPrice  Decimal       @db.Decimal(14, 2)
+  validFrom  DateTime      @default(now())
+  validUntil DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([period, validFrom])
+  @@index([validUntil])
+}
+
+model AgencySubscription {
+  id                   String                              @id @default(uuid())
+  agencyId             String
+  planId               String
+  status               SubscriptionLifecycleStatus         @default(ACTIVE)
+  period               BillingPeriod
+  collectionMode       BillingCollectionMode               @default(AUTOMATIC)
+  currency             String                              @default("COP")
+  isFreeTier           Boolean                             @default(false)
+  planSnapshot         Json
+  planUnitAmount       Decimal                             @db.Decimal(14, 2)
+  cityUnitAmount       Decimal?                            @db.Decimal(14, 2)
+  includedCities       Int                                 @default(1)
+  overageCapAmount     Decimal?                            @db.Decimal(14, 2)
+  customLimits         Json?
+  customOveragePricing Json?
+  cycleStartAt         DateTime
+  cycleEndAt           DateTime
+  trialEndsAt          DateTime?
+  cancelAtPeriodEnd    Boolean                             @default(false)
+  cancelScheduledAt    DateTime?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  stripeSubscriptionId String?                             @unique
+  stripePriceId        String?
+  stripePlanItemId     String?
+  stripeCitiesItemId   String?
+  nextInvoicePreviewAt DateTime?
+  metadata             Json?
+  createdAt            DateTime                            @default(now())
+  updatedAt            DateTime                            @updatedAt
+  agency               RealEstateAgency                    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  plan                 BillingPlan                         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  cities               AgencySubscriptionCity[]
+  pendingChanges       BillingPendingChange[]
+  limitOverrides       AgencySubscriptionLimitOverride[]
+  overageOverrides     AgencySubscriptionOverageOverride[]
+  usageCounters        AgencyUsageCounter[]
+  usageEvents          AgencyUsageEvent[]
+  invoices             BillingInvoice[]
+  coupons              AgencyCoupon[]
+  billingAuditLogs     BillingAuditLog[]
+  webhookEvents        BillingWebhookEvent[]
+
+  @@index([agencyId, status])
+  @@index([agencyId, cycleEndAt])
+  @@index([planId, period])
+}
+
+model AgencySubscriptionCity {
+  id                       String                 @id @default(uuid())
+  subscriptionId           String
+  cityCode                 String
+  cityName                 String
+  status                   SubscriptionCityStatus @default(ACTIVE)
+  isPrimary                Boolean                @default(false)
+  applyMode                ChangeApplyMode        @default(NEXT_CYCLE)
+  activeFrom               DateTime?
+  activeUntil              DateTime?
+  stripeSubscriptionItemId String?
+  prorationInvoiceId       String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  subscription             AgencySubscription     @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, cityCode])
+  @@index([subscriptionId, status])
+}
+
+model BillingPendingChange {
+  id                String                 @id @default(uuid())
+  agencyId          String
+  subscriptionId    String?
+  changeType        SubscriptionChangeType
+  applyMode         ChangeApplyMode        @default(NEXT_CYCLE)
+  status            PendingChangeStatus    @default(PENDING)
+  requestedByUserId String?
+  approvedByUserId  String?
+  reason            String?
+  payload           Json
+  idempotencyKey    String?                @unique
+  effectiveAt       DateTime
+  processedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  agency            RealEstateAgency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription      AgencySubscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, status, effectiveAt])
+  @@index([subscriptionId, status])
+}
+
+model AgencySubscriptionLimitOverride {
+  id              String             @id @default(uuid())
+  subscriptionId  String
+  metricCode      String
+  behavior        LimitBehavior
+  includedUnits   Int
+  justification   String?
+  createdByUserId String?
+  effectiveFrom   DateTime           @default(now())
+  effectiveUntil  DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  subscription    AgencySubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, metricCode, effectiveFrom])
+}
+
+model AgencySubscriptionOverageOverride {
+  id              String             @id @default(uuid())
+  subscriptionId  String
+  metricCode      String
+  currency        String             @default("COP")
+  unitPrice       Decimal            @db.Decimal(14, 6)
+  justification   String?
+  createdByUserId String?
+  effectiveFrom   DateTime           @default(now())
+  effectiveUntil  DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  subscription    AgencySubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, metricCode, effectiveFrom])
+}
+
+model AgencyUsageCounter {
+  id               String             @id @default(uuid())
+  agencyId         String
+  subscriptionId   String
+  metricCode       String
+  cycleStartAt     DateTime
+  cycleEndAt       DateTime
+  behavior         LimitBehavior
+  includedUnits    Int
+  consumedUnits    Int                @default(0)
+  overageUnits     Int                @default(0)
+  overageAmount    Decimal            @default(0) @db.Decimal(14, 2)
+  overageCapAmount Decimal?           @db.Decimal(14, 2)
+  capReachedAt     DateTime?
+  lastRecordedAt   DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  agency           RealEstateAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription     AgencySubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  usageEvents      AgencyUsageEvent[]
+
+  @@unique([subscriptionId, metricCode, cycleStartAt])
+  @@index([agencyId, cycleStartAt, cycleEndAt])
+}
+
+model AgencyUsageEvent {
+  id             String              @id @default(uuid())
+  agencyId       String
+  subscriptionId String
+  counterId      String?
+  metricCode     String
+  quantity       Int                 @default(1)
+  eventKey       String?             @unique
+  idempotencyKey String?             @unique
+  sourceType     String?
+  sourceRef      String?
+  actorUserId    String?
+  occurredAt     DateTime
+  metadata       Json?
+  createdAt      DateTime            @default(now())
+  agency         RealEstateAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription   AgencySubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  counter        AgencyUsageCounter? @relation(fields: [counterId], references: [id], onDelete: SetNull)
+
+  @@index([subscriptionId, metricCode, occurredAt])
+  @@index([agencyId, occurredAt])
+}
+
+model BillingInvoice {
+  id                   String                   @id @default(uuid())
+  agencyId             String
+  subscriptionId       String?
+  stripeInvoiceId      String                   @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  invoiceNumber        String?
+  status               BillingInvoiceStatus
+  currency             String                   @default("COP")
+  billingReason        String?
+  periodStartAt        DateTime?
+  periodEndAt          DateTime?
+  dueAt                DateTime?
+  finalizedAt          DateTime?
+  paidAt               DateTime?
+  failedAt             DateTime?
+  subtotalAmount       Decimal                  @default(0) @db.Decimal(14, 2)
+  discountAmount       Decimal                  @default(0) @db.Decimal(14, 2)
+  taxAmount            Decimal                  @default(0) @db.Decimal(14, 2)
+  totalAmount          Decimal                  @default(0) @db.Decimal(14, 2)
+  amountDue            Decimal                  @default(0) @db.Decimal(14, 2)
+  amountPaid           Decimal                  @default(0) @db.Decimal(14, 2)
+  amountRemaining      Decimal                  @default(0) @db.Decimal(14, 2)
+  hostedInvoiceUrl     String?
+  invoicePdfUrl        String?
+  paymentIntentId      String?
+  rawPayload           Json?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  agency               RealEstateAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription         AgencySubscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  lineItems            BillingInvoiceLineItem[]
+
+  @@index([agencyId, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([status, dueAt])
+  @@index([invoiceNumber])
+}
+
+model BillingInvoiceLineItem {
+  id                  String                 @id @default(uuid())
+  invoiceId           String
+  stripeInvoiceLineId String?                @unique
+  type                BillingInvoiceLineType
+  description         String?
+  metricCode          String?
+  cityCode            String?
+  quantity            Decimal                @default(1) @db.Decimal(14, 4)
+  unitAmount          Decimal                @default(0) @db.Decimal(14, 6)
+  totalAmount         Decimal                @default(0) @db.Decimal(14, 2)
+  periodStartAt       DateTime?
+  periodEndAt         DateTime?
+  metadata            Json?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  invoice             BillingInvoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, type])
+}
+
+model AgencyCoupon {
+  id               String              @id @default(uuid())
+  agencyId         String
+  subscriptionId   String?
+  couponCode       String
+  stripeCouponId   String?
+  type             CouponType
+  duration         CouponDuration
+  currency         String?             @default("COP")
+  percentOff       Decimal?            @db.Decimal(5, 2)
+  amountOff        Decimal?            @db.Decimal(14, 2)
+  maxCycles        Int?
+  status           AgencyCouponStatus  @default(ACTIVE)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  appliedAt        DateTime            @default(now())
+  removedAt        DateTime?
+  appliedByUserId  String?
+  approvedByUserId String?
+  reason           String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  agency           RealEstateAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription     AgencySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, status, appliedAt])
+  @@index([subscriptionId, status])
+}
+
+model BillingPaymentMethod {
+  id                    String                     @id @default(uuid())
+  agencyId              String
+  stripePaymentMethodId String                     @unique
+  type                  String                     @default("card")
+  brand                 String?
+  last4                 String?
+  expMonth              Int?
+  expYear               Int?
+  funding               String?
+  country               String?
+  status                BillingPaymentMethodStatus @default(ACTIVE)
+  isDefault             Boolean                    @default(false)
+  fingerprint           String?
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  detachedAt            DateTime?
+  agency                RealEstateAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, isDefault])
+  @@index([agencyId, status])
+}
+
+model BillingWebhookEvent {
+  id             String               @id @default(uuid())
+  provider       String               @default("stripe")
+  eventId        String               @unique
+  eventType      String
+  status         BillingWebhookStatus @default(RECEIVED)
+  idempotencyKey String?              @unique
+  agencyId       String?
+  subscriptionId String?
+  payload        Json
+  errorMessage   String?
+  attemptCount   Int                  @default(0)
+  receivedAt     DateTime             @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  agency         RealEstateAgency?    @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  subscription   AgencySubscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([provider, eventType, receivedAt])
+  @@index([status, receivedAt])
+  @@index([agencyId, createdAt])
+}
+
+model BillingAuditLog {
+  id               String                @id @default(uuid())
+  agencyId         String
+  subscriptionId   String?
+  actorType        BillingAuditActorType
+  actorUserId      String?
+  action           String
+  reason           String?
+  approvalRequired Boolean               @default(false)
+  approvedByUserId String?
+  ipAddress        String?
+  userAgent        String?
+  previousValue    Json?
+  nextValue        Json?
+  createdAt        DateTime              @default(now())
+  agency           RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subscription     AgencySubscription?   @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, createdAt])
+  @@index([subscriptionId, createdAt])
+  @@index([action, createdAt])
+}
+
+enum OperationType {
+  SALE
+  RENT
+  SALE_AND_RENT
+  RENT_TO_OWN
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  STUDIO_APARTMENT
+  COUNTRY_HOUSE
+  LOT
+  FARM
+  COMMERCIAL_RETAIL
+  OFFICE
+  WAREHOUSE
+  PARKING
+}
+
+enum PropertyStatus {
+  DRAFT
+  AVAILABLE
+  RESERVED
+  IN_NEGOTIATION
+  SOLD
+  RENTED
+  WITHDRAWN
+  ARCHIVED
+}
+
+enum PortfolioStatus {
+  EXTERNAL_DETECTED
+  INTERNAL_PIPELINE
+  INTERNAL_PORTFOLIO
+}
+
+enum PropertyVisibility {
+  PRIVATE
+  SHARED_NETWORK
+  PUBLISHED
+}
+
+enum PropertySourceType {
+  MANUAL_FORM
+  PORTAL_SCRAPING
+  CAPTURE_OPPORTUNITY
+  BULK_IMPORT
+  SIGNED_MANDATE
+}
+
+enum PublicationStatus {
+  PENDING
+  PUBLISHED
+  PAUSED
+  EXPIRED
+  ERROR
+}
+
+enum CaptureOpportunityStatus {
+  NEW
+  ASSIGNED
+  CONTACTED
+  IN_NEGOTIATION
+  CAPTURED
+  DISCARDED
+  EXPIRED
+}
+
+enum DemandStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  IN_VISIT
+  IN_NEGOTIATION
+  WON
+  LOST
+  DISCARDED
+  DORMANT
+}
+
+enum DemandLeadSource {
+  PORTAL
+  WEB_FORM
+  REFERRAL
+  DIRECT_CAPTURE
+  MICROSITE
+  WHATSAPP_ASSISTANT
+  LANDING_PAGE
+  OTHER
+}
+
+enum DemandInteractionType {
+  NOTE
+  CALL
+  MESSAGE
+}
+
+enum DemandImportJobStatus {
+  DRAFT
+  VALIDATED
+  COMPLETED
+  FAILED
+}
+
+enum TaskType {
+  FOLLOW_UP
+  CALL
+  EMAIL
+  VISIT_PREPARATION
+  DOCUMENT
+  OTHER
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+}
+
+enum VisitType {
+  CAPTURE
+  COMMERCIAL
+  APPRAISAL
+  CLOSING
+}
+
+enum VisitStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum VisitConfirmationStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  DECLINED
+  EXPIRED
+}
+
+enum CalendarProvider {
+  GOOGLE_CALENDAR
+}
+
+enum CalendarConnectionStatus {
+  INITIATED
+  ACTIVE
+  FAILED
+  REVOKED
+}
+
+enum ExternalCalendarSyncStatus {
+  PENDING
+  SYNCED
+  FAILED
+  CANCELLED
+}
+
+enum CommissionStatus {
+  PENDING
+  DEVENGADA
+  PAGADA
+  DISPUTADA
+  REVERTIDA
+}
+
+enum CommissionRole {
+  CAPTADOR
+  GESTOR
+  AGENCY
+  REFERIDOR
+}
+
+enum CommissionBaseType {
+  SALE_PERCENT
+  RENT_MONTHS
+}
+
+enum LiquidationPeriodType {
+  BIWEEKLY
+  MONTHLY
+}
+
+enum LiquidationRunStatus {
+  GENERATED
+  EXPORTED
+}
+
+enum PropertyPhotoStatus {
+  PENDING_UPLOAD
+  READY
+  FAILED
+}
+
+enum PropertyDocumentType {
+  FLOOR_PLAN
+  LEGAL
+  CERTIFICATE
+  OTHER
+}
+
+enum PropertyDocumentStatus {
+  PENDING_UPLOAD
+  READY
+  FAILED
+}
+
+enum PropertyImportJobStatus {
+  DRAFT
+  VALIDATED
+  COMPLETED
+  FAILED
+}
+
+model Owner {
+  id         String           @id @default(uuid())
+  agencyId   String
+  fullName   String
+  phone      String?
+  email      String?
+  documentId String?
+  metadata   Json?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  agency     RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  properties PropertyOwner[]
+
+  @@index([agencyId])
+  @@index([phone])
+  @@index([email])
+}
+
+model Property {
+  id                      String                @id @default(uuid())
+  agencyId                String
+  internalReference       String
+  operationType           OperationType
+  propertyType            PropertyType
+  status                  PropertyStatus        @default(DRAFT)
+  portfolioStatus         PortfolioStatus       @default(INTERNAL_PIPELINE)
+  visibility              PropertyVisibility    @default(PRIVATE)
+  primarySource           PropertySourceType
+  title                   String?
+  description             String?
+  city                    String
+  department              String?
+  neighborhood            String?
+  addressText             String
+  normalizedAddress       String?
+  latitude                Decimal?              @db.Decimal(10, 7)
+  longitude               Decimal?              @db.Decimal(10, 7)
+  stratum                 Int?
+  builtAreaM2             Decimal?              @db.Decimal(10, 2)
+  privateAreaM2           Decimal?              @db.Decimal(10, 2)
+  lotAreaM2               Decimal?              @db.Decimal(10, 2)
+  bedrooms                Int?
+  bathrooms               Int?
+  parkingSpots            Int?
+  adminFee                Decimal?              @db.Decimal(14, 2)
+  salePrice               Decimal?              @db.Decimal(14, 2)
+  rentPrice               Decimal?              @db.Decimal(14, 2)
+  legalStatus             String?
+  appraisalCommercial     Decimal?              @db.Decimal(14, 2)
+  suggestedPrice          Decimal?              @db.Decimal(14, 2)
+  suggestedPriceScenario  String?
+  suggestedPriceUpdatedAt DateTime?
+  isPotentialDuplicate    Boolean               @default(false)
+  duplicateReviewNotes    String?
+  detailsJson             Json?
+  publicData              Json?
+  privateData             Json?
+  capturedByUserId        String?
+  managerUserId           String?
+  capturedAt              DateTime?
+  exclusivityUntil        DateTime?
+  closedAt                DateTime?
+  archivedAt              DateTime?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  agency                  RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  owners                  PropertyOwner[]
+  sourceEvents            PropertySourceEvent[]
+  photos                  PropertyPhoto[]
+  documents               PropertyDocument[]
+  publications            PropertyPublication[]
+  pricingRuns             PropertyPricingRun[]
+  commissionSetting       PropertyCommissionSetting?
+  commissions             Commission[]
+  auditLogs               AuditLog[]
+  tasks                   Task[]
+  visits                  Visit[]
+
+  @@unique([agencyId, internalReference])
+  @@index([agencyId, status])
+  @@index([agencyId, portfolioStatus])
+  @@index([agencyId, propertyType, operationType])
+  @@index([agencyId, city, neighborhood])
+  @@index([agencyId, normalizedAddress])
+}
+
+model PropertyPhoto {
+  id              String             @id @default(uuid())
+  agencyId        String
+  propertyId      String
+  objectKey       String             @unique
+  publicUrl       String
+  fileName        String
+  mimeType        String
+  byteSize        Int
+  orderIndex      Int
+  isPrimary       Boolean            @default(false)
+  status          PropertyPhotoStatus @default(PENDING_UPLOAD)
+  uploadedByUserId String?
+  uploadedAt      DateTime?
+  etag            String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  agency          RealEstateAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property        Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, propertyId, orderIndex])
+  @@index([propertyId, status])
+}
+
+model PropertyDocument {
+  id               String                @id @default(uuid())
+  agencyId         String
+  propertyId       String
+  objectKey        String                @unique
+  publicUrl        String
+  fileName         String
+  mimeType         String
+  byteSize         Int
+  type             PropertyDocumentType
+  status           PropertyDocumentStatus @default(PENDING_UPLOAD)
+  uploadedByUserId String?
+  uploadedAt       DateTime?
+  etag             String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  agency           RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property         Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, propertyId, type])
+  @@index([propertyId, status])
+}
+
+model PropertyImportJob {
+  id             String                @id @default(uuid())
+  agencyId       String
+  sourceFileName String
+  sourceFormat   String
+  status         PropertyImportJobStatus @default(DRAFT)
+  totalRows      Int                   @default(0)
+  successRows    Int                   @default(0)
+  failedRows     Int                   @default(0)
+  mappingJson    Json?
+  errorReport    Json?
+  createdByUserId String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  agency         RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, status, createdAt])
+}
+
+model PropertyCommissionSetting {
+  id                 String           @id @default(uuid())
+  agencyId           String
+  propertyId         String           @unique
+  totalPercentage    Decimal          @db.Decimal(5, 2)
+  captadorPercentage Decimal          @default(0) @db.Decimal(5, 2)
+  gestorPercentage   Decimal          @default(0) @db.Decimal(5, 2)
+  agencyPercentage   Decimal          @default(0) @db.Decimal(5, 2)
+  referidorPercentage Decimal         @default(0) @db.Decimal(5, 2)
+  rentBaseMonths     Int              @default(1)
+  isAgencyDefaultSnapshot Boolean     @default(false)
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  agency             RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property           Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+  @@index([agencyId, propertyId])
+}
+
+model AgencyCommissionSetting {
+  id                 String             @id @default(uuid())
+  agencyId           String             @unique
+  totalPercentage    Decimal            @db.Decimal(5, 2)
+  captadorPercentage Decimal            @default(0) @db.Decimal(5, 2)
+  gestorPercentage   Decimal            @default(0) @db.Decimal(5, 2)
+  agencyPercentage   Decimal            @default(0) @db.Decimal(5, 2)
+  referidorPercentage Decimal           @default(0) @db.Decimal(5, 2)
+  rentBaseMonths     Int                @default(1)
+  currency           String             @default("COP")
+  baseType           CommissionBaseType @default(SALE_PERCENT)
+  notes              String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  agency             RealEstateAgency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId])
+}
+
+model Commission {
+  id                String           @id @default(uuid())
+  agencyId          String
+  propertyId        String
+  beneficiaryUserId String?
+  role              CommissionRole
+  status            CommissionStatus @default(PENDING)
+  percentage        Decimal          @db.Decimal(5, 2)
+  amount            Decimal          @db.Decimal(14, 2)
+  baseAmount        Decimal?         @db.Decimal(14, 2)
+  currency          String           @default("COP")
+  accruedAt         DateTime?
+  paidAt            DateTime?
+  disputedAt        DateTime?
+  revertedAt        DateTime?
+  reason            String?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  agency            RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property          Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, status, createdAt])
+  @@index([propertyId, status])
+  @@index([beneficiaryUserId, status])
+}
+
+model LiquidationRun {
+  id            String              @id @default(uuid())
+  agencyId      String
+  periodType    LiquidationPeriodType
+  status        LiquidationRunStatus @default(GENERATED)
+  periodStart   DateTime
+  periodEnd     DateTime
+  generatedByUserId String?
+  generatedAt   DateTime            @default(now())
+  exportedAt    DateTime?
+  metadata      Json?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  agency        RealEstateAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  items         LiquidationItem[]
+
+  @@unique([agencyId, periodType, periodStart, periodEnd])
+  @@index([agencyId, periodType, generatedAt])
+}
+
+model LiquidationItem {
+  id             String        @id @default(uuid())
+  liquidationRunId String
+  agencyId       String
+  itemKey        String
+  beneficiaryUserId String?
+  role           CommissionRole
+  pendingAmount  Decimal       @default(0) @db.Decimal(14, 2)
+  devengadaAmount Decimal      @default(0) @db.Decimal(14, 2)
+  pagadaAmount   Decimal       @default(0) @db.Decimal(14, 2)
+  disputadaAmount Decimal      @default(0) @db.Decimal(14, 2)
+  revertidaAmount Decimal      @default(0) @db.Decimal(14, 2)
+  balanceAmount  Decimal       @default(0) @db.Decimal(14, 2)
+  commissionCount Int          @default(0)
+  commissionIds  Json?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  liquidationRun LiquidationRun @relation(fields: [liquidationRunId], references: [id], onDelete: Cascade)
+
+  @@unique([liquidationRunId, itemKey])
+  @@index([agencyId, beneficiaryUserId, role])
+}
+
+model PropertyOwner {
+  id               String   @id @default(uuid())
+  propertyId       String
+  ownerId          String
+  ownershipPercent Decimal? @db.Decimal(5, 2)
+  isPrimaryContact Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  owner            Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, ownerId])
+  @@index([ownerId])
+}
+
+model PropertySourceEvent {
+  id                String             @id @default(uuid())
+  propertyId        String
+  sourceType        PropertySourceType
+  sourcePortal      String?
+  sourceUrl         String?
+  externalListingId String?
+  capturedAt        DateTime           @default(now())
+  capturedByUserId  String?
+  rawPayloadRef     String?
+  metadata          Json?
+  property          Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, capturedAt])
+  @@index([sourceType, sourcePortal])
+}
+
+model PropertyPublication {
+  id         String            @id @default(uuid())
+  propertyId String
+  portal     String
+  plan       String?
+  externalId String?
+  status     PublicationStatus @default(PENDING)
+  views      Int?              @default(0)
+  contacts   Int?              @default(0)
+  favorites  Int?              @default(0)
+  lastSyncAt DateTime?
+  lastError  String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  property   Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, portal])
+  @@index([portal, status])
+}
+
+model PropertyPricingRun {
+  id                  String   @id @default(uuid())
+  propertyId          String
+  scenario            String
+  suggestedPrice      Decimal  @db.Decimal(14, 2)
+  marketMedianPriceM2 Decimal? @db.Decimal(14, 2)
+  comparableCount     Int
+  runReason           String?
+  clusterSummary      Json?
+  createdAt           DateTime @default(now())
+  property            Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId, createdAt])
+}
+
+model CaptureOpportunity {
+  id                  String                   @id @default(uuid())
+  agencyId            String
+  sourcePortal        String
+  sourceUrl           String
+  externalListingId   String?
+  contactName         String?
+  contactPhone        String?
+  contactEmail        String?
+  title               String?
+  description         String?
+  city                String?
+  neighborhood        String?
+  listedPrice         Decimal?                 @db.Decimal(14, 2)
+  status              CaptureOpportunityStatus @default(NEW)
+  assignedToUserId    String?
+  score               Decimal?                 @db.Decimal(5, 2)
+  scoreReasons        Json?
+  capturedAt          DateTime                 @default(now())
+  expiresAt           DateTime?
+  metadata            Json?
+  convertedPropertyId String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  agency              RealEstateAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, status])
+  @@index([agencyId, sourcePortal, capturedAt])
+  @@index([contactPhone])
+}
+
+model Demand {
+  id                    String           @id @default(uuid())
+  agencyId              String
+  prospectName          String
+  prospectPhone         String?
+  prospectEmail         String?
+  prospectWhatsapp      String?
+  leadSource            DemandLeadSource
+  assignedToUserId      String?
+  status                DemandStatus     @default(NEW)
+  operationType         OperationType
+  acceptedPropertyTypes Json
+  priceMin              Decimal?         @db.Decimal(14, 2)
+  priceMax              Decimal?         @db.Decimal(14, 2)
+  zonesNeighborhoods    Json
+  minBedrooms           Int?
+  minBathrooms          Int?
+  minAreaM2             Decimal?         @db.Decimal(10, 2)
+  stratum               Int?
+  mustHave              Json?
+  niceToHave            Json?
+  qualitativeData       Json?
+  isHistorical          Boolean          @default(false)
+  legacyOpenedAt        DateTime?
+  lastContactAlertAt    DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  agency                RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  interactions          DemandInteraction[]
+  tasks                 Task[]
+  visits                Visit[]
+
+  @@index([agencyId, status])
+  @@index([agencyId, leadSource])
+  @@index([agencyId, assignedToUserId])
+  @@index([agencyId, operationType, createdAt])
+  @@index([agencyId, isHistorical, createdAt])
+  @@index([agencyId, lastContactAlertAt])
+}
+
+model DemandInteraction {
+  id              String                @id @default(uuid())
+  agencyId        String
+  demandId        String
+  type            DemandInteractionType
+  content         String
+  createdByUserId String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  agency          RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  demand          Demand                @relation(fields: [demandId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, demandId, createdAt])
+  @@index([demandId, type, createdAt])
+}
+
+model DemandImportJob {
+  id               String               @id @default(uuid())
+  agencyId         String
+  sourceFileName   String
+  sourceFormat     String
+  status           DemandImportJobStatus @default(DRAFT)
+  totalRows        Int                  @default(0)
+  successRows      Int                  @default(0)
+  failedRows       Int                  @default(0)
+  mappingJson      Json?
+  errorReport      Json?
+  createdByUserId  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  agency           RealEstateAgency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, status, createdAt])
+}
+
+model Task {
+  id               String           @id @default(uuid())
+  agencyId         String
+  type             TaskType
+  description      String
+  priority         TaskPriority     @default(MEDIUM)
+  dueAt            DateTime
+  assignedToUserId String
+  status           TaskStatus       @default(PENDING)
+  completedAt      DateTime?
+  propertyId       String?
+  demandId         String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  agency           RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property         Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  demand           Demand?          @relation(fields: [demandId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, assignedToUserId, status, dueAt])
+  @@index([agencyId, status, dueAt])
+  @@index([agencyId, priority])
+  @@index([propertyId])
+  @@index([demandId])
+}
+
+model Visit {
+  id               String           @id @default(uuid())
+  agencyId         String
+  type             VisitType
+  status           VisitStatus      @default(SCHEDULED)
+  scheduledAt      DateTime
+  notes            String?
+  assignedToUserId String
+  prospectName     String?
+  prospectEmail    String?
+  prospectPhone    String?
+  confirmationStatus VisitConfirmationStatus @default(PENDING_CONFIRMATION)
+  confirmedAt      DateTime?
+  declinedAt       DateTime?
+  reminderDayBeforeSentAt DateTime?
+  postVisitFeedback Json?
+  postVisitFeedbackCapturedAt DateTime?
+  postVisitFeedbackCapturedByUserId String?
+  propertyId       String?
+  demandId         String?
+  externalCalendarProvider CalendarProvider?
+  externalCalendarId String?
+  externalEventId  String?
+  externalEventIcalUID String?
+  externalLastSyncedAt DateTime?
+  externalSyncStatus ExternalCalendarSyncStatus?
+  externalSyncError String?
+  importedBySync   Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  agency           RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property         Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  demand           Demand?          @relation(fields: [demandId], references: [id], onDelete: SetNull)
+  confirmationTokens VisitConfirmationToken[]
+
+  @@index([agencyId, assignedToUserId, scheduledAt])
+  @@index([agencyId, status, scheduledAt])
+  @@index([agencyId, confirmationStatus, scheduledAt])
+  @@index([agencyId, reminderDayBeforeSentAt])
+  @@index([agencyId, postVisitFeedbackCapturedAt])
+  @@index([agencyId, externalSyncStatus, externalLastSyncedAt])
+  @@index([agencyId, externalCalendarProvider, externalCalendarId])
+  @@unique([agencyId, externalCalendarProvider, externalEventId])
+  @@index([propertyId])
+  @@index([demandId])
+}
+
+model VisitConfirmationToken {
+  id              String           @id @default(uuid())
+  agencyId        String
+  visitId         String
+  tokenHash       String           @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  createdByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  agency          RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  visit           Visit            @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, visitId])
+  @@index([agencyId, expiresAt])
+  @@index([visitId, usedAt])
+}
+
+model CalendarConnection {
+  id               String                   @id @default(uuid())
+  agencyId         String
+  clerkUserId      String
+  provider         CalendarProvider
+  connectedAccountId String                @unique
+  status           CalendarConnectionStatus @default(INITIATED)
+  authConfigId     String
+  externalEmail    String?
+  lastSyncedAt     DateTime?
+  metadata         Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  agency           RealEstateAgency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, clerkUserId, provider])
+  @@index([agencyId, status])
+  @@index([agencyId, clerkUserId])
+}
+
+model CalendarSyncPreference {
+  id          String           @id @default(uuid())
+  agencyId    String
+  clerkUserId String
+  provider    CalendarProvider @default(GOOGLE_CALENDAR)
+  syncEnabled Boolean          @default(true)
+  importPrefix String?
+  importTag   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  agency      RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, clerkUserId, provider])
+  @@index([agencyId, syncEnabled])
+}
+
+model CalendarSyncCheckpoint {
+  id               String           @id @default(uuid())
+  agencyId         String
+  clerkUserId      String
+  provider         CalendarProvider @default(GOOGLE_CALENDAR)
+  lastImportedAt   DateTime?
+  lastExternalCursor String?
+  lastRunStatus    String?
+  lastRunError     String?
+  lastRunAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  agency           RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, clerkUserId, provider])
+  @@index([agencyId, lastImportedAt])
+}
+
+model MarketListing {
+  id                String           @id @default(uuid())
+  agencyId          String
+  sourcePortal      String
+  sourceUrl         String
+  externalListingId String?
+  operationType     OperationType
+  propertyType      PropertyType
+  city              String?
+  neighborhood      String?
+  addressText       String?
+  latitude          Decimal?         @db.Decimal(10, 7)
+  longitude         Decimal?         @db.Decimal(10, 7)
+  builtAreaM2       Decimal?         @db.Decimal(10, 2)
+  bedrooms          Int?
+  bathrooms         Int?
+  stratum           Int?
+  listedPrice       Decimal?         @db.Decimal(14, 2)
+  listedAt          DateTime?
+  lastSeenAt        DateTime?
+  isValid           Boolean          @default(true)
+  dedupeKey         String?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  agency            RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, operationType, propertyType])
+  @@index([agencyId, sourcePortal, lastSeenAt])
+  @@index([agencyId, dedupeKey])
+}
+
+model AuditLog {
+  id            String           @id @default(uuid())
+  agencyId      String
+  propertyId    String?
+  actorUserId   String?
+  entityType    String
+  entityId      String
+  action        String
+  reason        String?
+  ipAddress     String?
+  userAgent     String?
+  previousValue Json?
+  nextValue     Json?
+  createdAt     DateTime         @default(now())
+  agency        RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  property      Property?        @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId, createdAt])
+  @@index([entityType, entityId])
+  @@index([propertyId, createdAt])
+}
+
+model Notification {
+  id              String                     @id @default(uuid())
+  agencyId        String
+  recipientUserId String
+  eventType       NotificationEventType
+  title           String
+  body            String
+  payload         Json?
+  channels        NotificationChannel[]      @default([])
+  status          NotificationDeliveryStatus @default(DELIVERED)
+  readAt          DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  agency          RealEstateAgency           @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, recipientUserId, createdAt])
+  @@index([agencyId, recipientUserId, readAt])
+  @@index([agencyId, eventType, createdAt])
+}
+
+model NotificationPreference {
+  id           String                @id @default(uuid())
+  agencyId     String
+  userId       String
+  eventType    NotificationEventType
+  inAppEnabled Boolean               @default(true)
+  emailEnabled Boolean               @default(false)
+  isMuted      Boolean               @default(false)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  agency       RealEstateAgency      @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, userId, eventType])
+  @@index([agencyId, userId])
+}
+
+model NotificationDndWindow {
+  id                     String           @id @default(uuid())
+  agencyId               String
+  userId                 String
+  timezone               String           @default("UTC")
+  quietHoursStartMinutes Int              @default(1320)
+  quietHoursEndMinutes   Int              @default(420)
+  enabled                Boolean          @default(false)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  agency                 RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, userId])
+  @@index([agencyId, userId, enabled])
+}
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  templateKey String   @unique
+  subject     String
+  body        String
+  description String?
+  isCritical  Boolean  @default(false)
+  variables   Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AgencyEmailTemplateOverride {
+  id              String           @id @default(uuid())
+  agencyId        String
+  templateKey     String
+  subject         String
+  body            String
+  variables       Json?
+  updatedByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  agency          RealEstateAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@unique([agencyId, templateKey])
+  @@index([agencyId, updatedAt])
+}
+
+model EmailDelivery {
+  id                String              @id @default(uuid())
+  agencyId          String
+  recipientEmail    String
+  recipientUserId   String?
+  templateKey       String
+  eventType         NotificationEventType
+  subject           String
+  status            EmailDeliveryStatus @default(PENDING)
+  provider          String              @default("resend")
+  providerMessageId String?
+  idempotencyKey    String              @unique
+  errorMessage      String?
+  metadata          Json?
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  agency            RealEstateAgency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, recipientUserId, createdAt])
+  @@index([agencyId, templateKey, createdAt])
+  @@index([agencyId, status, createdAt])
+}
+
+model OpsAlert {
+  id               String           @id @default(uuid())
+  agencyId         String?
+  eventType        String
+  severity         OpsAlertSeverity
+  status           OpsAlertStatus   @default(NEW)
+  title            String
+  body             String
+  payload          Json?
+  fingerprint      String
+  dedupeWindowEndsAt DateTime
+  acknowledgedByUserId String?
+  acknowledgedAt   DateTime?
+  resolvedByUserId String?
+  resolvedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  agency           RealEstateAgency? @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+
+  @@index([status, severity, createdAt])
+  @@index([agencyId, createdAt])
+  @@index([fingerprint, createdAt])
+}
+
+model GlobalContactExclusion {
+  id              String            @id @default(uuid())
+  channel         ContactChannel
+  normalizedValue String
+  valueHash       String
+  reason          String?
+  source          SuppressionSource
+  notes           String?
+  expiresAt       DateTime?
+  active          Boolean           @default(true)
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([channel, valueHash])
+  @@index([active, channel])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
